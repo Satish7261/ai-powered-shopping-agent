@@ -1,19 +1,20 @@
 # 🛒 AI Shopping Assistant
 
-An AI-powered shopping assistant built with **LangChain**, **LangGraph**, **Groq**, **Streamlit**, and **SQLite**. It helps users search for products, get AI recommendations, view product details, and place orders through a conversational interface.
+An AI-powered shopping assistant built with **LangChain**, **LangGraph**, **Groq**, **Streamlit**, and **SQLite**. It helps users search products, compare ratings, analyze product images, and place orders through a conversational interface.
 
 ## 🚀 Live Demo
 
-🔗 Coming Soon
+🔗 https://ai-shopping-assistant-km26ywqxc4gpjdmtfniqns.streamlit.app/
 
 ## ✨ Features
 
 - 🔍 Search products using natural language
-- 🤖 AI-powered product recommendations
-- ⭐ Product ranking based on ratings
-- 🖼️ Product image description
-- 🛍️ Place product orders
+- ⭐ AI-powered product recommendations
+- 🖼️ Product image analysis
+- 💬 Customer review lookup
+- 🛍️ Place orders through chat
 - 💾 SQLite database integration
+- 🎨 Interactive Streamlit interface
 
 ## 🛠️ Tech Stack
 
@@ -27,53 +28,64 @@ An AI-powered shopping assistant built with **LangChain**, **LangGraph**, **Groq
 ## 📂 Project Structure
 
 ```text
-project_shopping_agent/
+AI-Shopping-Assistant/
 │── app.py
 │── shopping_agent.py
+│── setup_db.py
 │── reviews_api.py
 │── requirements.txt
 │── README.md
-│── store.db
+│── .env
 ```
 
 ## ⚙️ Installation
 
-Clone the repository:
-
 ```bash
-git clone https://github.com/your-username/project_shopping_agent.git
-cd project_shopping_agent
+git clone https://github.com/Satish7261/AI-Shopping-Assistant.git
+cd AI-Shopping-Assistant
+
+python -m venv .venv
 ```
 
-Install dependencies:
+### Activate Virtual Environment
+
+**Windows**
+
+```bash
+.venv\Scripts\activate
+```
+
+**Linux/macOS**
+
+```bash
+source .venv/bin/activate
+```
+
+### Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Create a `.env` file:
+### Create a `.env` file
 
 ```env
 GROQ_API_KEY=your_groq_api_key
 ```
 
-Run the application:
+### Run the Application
 
 ```bash
 streamlit run app.py
 ```
 
-## 💬 Example Queries
+## 💡 Example Queries
 
-```text
-I want to buy honey
-
-Show me organic honey
-
-Recommend the best coffee
-
-Order product #2
-```
+- I want to buy organic honey
+- Show me the highest-rated coffee
+- Recommend a product under $20
+- Describe this product image
+- Order product #2
 
 ## 👨‍💻 Author
 
@@ -81,4 +93,6 @@ Order product #2
 
 GitHub: https://github.com/Satish7261
 
-⭐ Thanks for visiting this project!
+---
+
+⭐ If you found this project useful, consider giving it a star!
