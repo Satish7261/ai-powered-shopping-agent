@@ -9,22 +9,20 @@ from langchain.agents import create_agent
 from langchain.tools import tool
 from langchain_core.messages import HumanMessage
 from langchain_groq import ChatGroq
-
 from reviews_api import get_product_rating
 
 load_dotenv()
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "store.db")
 
-
 from setup_db import create_database
 
-if not os.path.exists(DB_PATH):
-    create_database()
+# Always initialize the database (safe because setup_db.py uses
+# CREATE TABLE IF NOT EXISTS and INSERT OR REPLACE)
+create_database()
 
 llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
 vision_llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
-
 
 # ---------------------------------------------------------------------------
 # Tools
