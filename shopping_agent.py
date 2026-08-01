@@ -16,6 +16,12 @@ load_dotenv()
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "store.db")
 
+
+from setup_db import create_database
+
+if not os.path.exists(DB_PATH):
+    create_database()
+
 llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
 vision_llm = ChatGroq(model="llama-3.3-70b-versatile", temperature=0)
 
