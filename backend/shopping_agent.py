@@ -44,12 +44,14 @@ create_database()
 
 llm = ChatGroq(
     model="qwen/qwen3.6-27b",
-    temperature=0
+    temperature=0,
+    max_tokens=800
 )
 
 vision_llm = ChatGroq(
     model="qwen/qwen3.6-27b",
-    temperature=0
+    temperature=0,
+    max_tokens=800
 )
 
 
