@@ -27,12 +27,12 @@ load_dotenv()
 
 DB_PATH = os.path.join(
     os.path.dirname(__file__),
-    "store.db"
+    "store.db",
 )
 
 
 # ============================================================
-# CREATE DATABASE
+# CREATE / INITIALIZE DATABASE
 # ============================================================
 
 create_database()
@@ -45,13 +45,14 @@ create_database()
 llm = ChatGroq(
     model="qwen/qwen3.6-27b",
     temperature=0,
-    max_tokens=800
+    max_tokens=800,
 )
+
 
 vision_llm = ChatGroq(
     model="qwen/qwen3.6-27b",
     temperature=0,
-    max_tokens=800
+    max_tokens=800,
 )
 
 
@@ -72,12 +73,10 @@ def search_products(
         Product name, category, description, or keyword.
 
     max_price:
-        Maximum price. The AI may send this as a number,
-        string, or null.
+        Maximum price. Accepts a number, string, or null.
 
     is_organic:
-        Organic filter. The AI may send this as a boolean,
-        string, number, or null.
+        Organic filter. Accepts boolean, string, number, or null.
     """
 
     # --------------------------------------------------------
@@ -92,23 +91,18 @@ def search_products(
 
             if isinstance(max_price, str):
 
-                price_text = max_price.strip()
+                price_text = max_price.strip().lower()
 
-                if price_text.lower() not in [
+                if price_text not in [
                     "",
                     "none",
                     "null",
                 ]:
-
-                    price_value = float(
-                        price_text
-                    )
+                    price_value = float(price_text)
 
             else:
 
-                price_value = float(
-                    max_price
-                )
+                price_value = float(max_price)
 
         except (
             ValueError,
@@ -126,30 +120,25 @@ def search_products(
 
     if is_organic is not None:
 
-        # Boolean
         if isinstance(
             is_organic,
-            bool
+            bool,
         ):
 
             organic_value = is_organic
 
-
-        # Number
         elif isinstance(
             is_organic,
-            (int, float)
+            (int, float),
         ):
 
-            organic_value = (
-                bool(is_organic)
+            organic_value = bool(
+                is_organic
             )
 
-
-        # String
         elif isinstance(
             is_organic,
-            str
+            str,
         ):
 
             organic_text = (
@@ -182,108 +171,106 @@ def search_products(
     # NORMALIZE QUERY
     # --------------------------------------------------------
 
-    search_query = str(
-        query
-    ).strip().lower()
+    search_query = (
+        str(query)
+        .strip()
+        .lower()
+    )
 
 
     # --------------------------------------------------------
     # DATABASE CONNECTION
     # --------------------------------------------------------
 
-    conn = sqlite3.connect(
-        DB_PATH
-    )
-
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
 
-    # --------------------------------------------------------
-    # SQL QUERY
-    # --------------------------------------------------------
+    try:
 
-    sql = """
-        SELECT
-            id,
-            name,
-            description,
-            category,
-            price,
-            is_organic
-        FROM products
-        WHERE (
-            LOWER(name) LIKE ?
-            OR LOWER(description) LIKE ?
-            OR LOWER(category) LIKE ?
-        )
-    """
+        # ----------------------------------------------------
+        # SQL QUERY
+        # ----------------------------------------------------
 
-
-    search_term = (
-        f"%{search_query}%"
-    )
-
-
-    params = [
-        search_term,
-        search_term,
-        search_term,
-    ]
-
-
-    # --------------------------------------------------------
-    # PRICE FILTER
-    # --------------------------------------------------------
-
-    if price_value is not None:
-
-        sql += """
-            AND price <= ?
+        sql = """
+            SELECT
+                id,
+                name,
+                description,
+                category,
+                price,
+                is_organic
+            FROM products
+            WHERE (
+                LOWER(name) LIKE ?
+                OR LOWER(description) LIKE ?
+                OR LOWER(category) LIKE ?
+            )
         """
 
-        params.append(
-            price_value
-        )
+        search_term = f"%{search_query}%"
+
+        params = [
+            search_term,
+            search_term,
+            search_term,
+        ]
 
 
-    # --------------------------------------------------------
-    # ORGANIC FILTER
-    # --------------------------------------------------------
+        # ----------------------------------------------------
+        # PRICE FILTER
+        # ----------------------------------------------------
 
-    if organic_value is not None:
+        if price_value is not None:
+
+            sql += """
+                AND price <= ?
+            """
+
+            params.append(
+                price_value
+            )
+
+
+        # ----------------------------------------------------
+        # ORGANIC FILTER
+        # ----------------------------------------------------
+
+        if organic_value is not None:
+
+            sql += """
+                AND is_organic = ?
+            """
+
+            params.append(
+                1 if organic_value else 0
+            )
+
+
+        # ----------------------------------------------------
+        # SORT PRODUCTS
+        # ----------------------------------------------------
 
         sql += """
-            AND is_organic = ?
+            ORDER BY price ASC
         """
 
-        params.append(
-            1 if organic_value else 0
+
+        # ----------------------------------------------------
+        # EXECUTE QUERY
+        # ----------------------------------------------------
+
+        cursor.execute(
+            sql,
+            params,
         )
 
-
-    # --------------------------------------------------------
-    # SORT PRODUCTS
-    # --------------------------------------------------------
-
-    sql += """
-        ORDER BY price ASC
-    """
+        rows = cursor.fetchall()
 
 
-    # --------------------------------------------------------
-    # EXECUTE
-    # --------------------------------------------------------
+    finally:
 
-    cursor.execute(
-        sql,
-        params
-    )
-
-
-    rows = cursor.fetchall()
-
-
-    conn.close()
+        conn.close()
 
 
     # --------------------------------------------------------
@@ -291,7 +278,6 @@ def search_products(
     # --------------------------------------------------------
 
     products = []
-
 
     for row in rows:
 
@@ -315,7 +301,7 @@ def search_products(
 
     return json.dumps(
         products,
-        indent=2
+        indent=2,
     )
 
 
@@ -325,7 +311,7 @@ def search_products(
 
 @tool
 def get_rating(
-    product_id: int
+    product_id: int,
 ):
     """
     Get the average rating and review count
@@ -343,97 +329,130 @@ def get_rating(
 
 @tool
 def checkout(
-    product_id: int
+    product_id: int,
 ):
     """
     Place an order for a product.
 
-    This should only be called after the user explicitly
-    confirms that they want to purchase the product.
+    This tool should only be called after the user
+    explicitly confirms that they want to purchase
+    the selected product.
     """
 
-    conn = sqlite3.connect(
-        DB_PATH
-    )
-
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
+    try:
 
-    # --------------------------------------------------------
-    # FIND PRODUCT
-    # --------------------------------------------------------
+        # ----------------------------------------------------
+        # FIND PRODUCT
+        # ----------------------------------------------------
 
-    cursor.execute(
-        """
-        SELECT
-            id,
-            name,
-            price
-        FROM products
-        WHERE id = ?
-        """,
-        (
-            product_id,
+        cursor.execute(
+            """
+            SELECT
+                id,
+                name,
+                price
+            FROM products
+            WHERE id = ?
+            """,
+            (
+                product_id,
+            ),
         )
-    )
+
+        product = cursor.fetchone()
 
 
-    product = cursor.fetchone()
+        # ----------------------------------------------------
+        # PRODUCT NOT FOUND
+        # ----------------------------------------------------
+
+        if not product:
+
+            return (
+                f"Product ID {product_id} "
+                "was not found."
+            )
 
 
-    if not product:
+        # ----------------------------------------------------
+        # EXTRACT PRODUCT DATA
+        # ----------------------------------------------------
 
-        conn.close()
+        product_id_value = product[0]
+        product_name = product[1]
+        product_price = product[2]
+
+
+        # ----------------------------------------------------
+        # CREATE ORDER
+        # ----------------------------------------------------
+
+        cursor.execute(
+            """
+            INSERT INTO orders
+            (
+                product_id,
+                product_name,
+                price
+            )
+            VALUES
+            (
+                ?,
+                ?,
+                ?
+            )
+            """,
+            (
+                product_id_value,
+                product_name,
+                product_price,
+            ),
+        )
+
+
+        # ----------------------------------------------------
+        # GET ORDER ID
+        # ----------------------------------------------------
+
+        order_id = cursor.lastrowid
+
+
+        # ----------------------------------------------------
+        # SAVE ORDER
+        # ----------------------------------------------------
+
+        conn.commit()
+
+
+        # ----------------------------------------------------
+        # CONFIRM ORDER
+        # ----------------------------------------------------
 
         return (
-            f"Product ID {product_id} "
-            "was not found."
+            f"Order confirmed! "
+            f"Order ID: {order_id}. "
+            f"Product: {product_name}. "
+            f"Price: ${product_price:.2f}. "
+            f"Your order will arrive in 3-5 business days."
         )
 
 
-    product_id_value = product[0]
-    product_name = product[1]
-    product_price = product[2]
+    except sqlite3.Error as e:
 
+        conn.rollback()
 
-    # --------------------------------------------------------
-    # CREATE ORDER
-    # --------------------------------------------------------
-
-    cursor.execute(
-        """
-        INSERT INTO orders
-        (
-            product_id
+        return (
+            "Database error while placing "
+            f"the order: {str(e)}"
         )
-        VALUES
-        (?)
-        """,
-        (
-            product_id_value,
-        )
-    )
 
 
-    conn.commit()
+    finally:
 
-
-    order_id = cursor.lastrowid
-
-
-    conn.close()
-
-
-    # --------------------------------------------------------
-    # CONFIRM ORDER
-    # --------------------------------------------------------
-
-    return (
-        f"Order confirmed! "
-        f"Order ID: {order_id}. "
-        f"Product: {product_name}. "
-        f"Price: ${product_price}."
-    )
+        conn.close()
 
 
 # ============================================================
@@ -442,7 +461,7 @@ def checkout(
 
 @tool
 def describe_product_image(
-    image_path: str
+    image_path: str,
 ):
     """
     Analyze a product image and return a description
@@ -459,9 +478,7 @@ def describe_product_image(
 
         return json.dumps(
             {
-                "error": (
-                    "Image file not found."
-                )
+                "error": "Image file not found."
             }
         )
 
@@ -472,12 +489,10 @@ def describe_product_image(
 
     with open(
         image_path,
-        "rb"
+        "rb",
     ) as image_file:
 
-        image_bytes = (
-            image_file.read()
-        )
+        image_bytes = image_file.read()
 
 
     # --------------------------------------------------------
@@ -487,9 +502,7 @@ def describe_product_image(
     encoded_image = (
         base64.b64encode(
             image_bytes
-        ).decode(
-            "utf-8"
-        )
+        ).decode("utf-8")
     )
 
 
@@ -503,7 +516,6 @@ def describe_product_image(
         )[1]
         .lower()
     )
-
 
     if extension == ".png":
 
@@ -569,11 +581,9 @@ used to search products in a store.
 
     return json.dumps(
         {
-            "description": (
-                response.content
-            )
+            "description": response.content
         },
-        indent=2
+        indent=2,
     )
 
 
@@ -596,8 +606,8 @@ tools = [
 SYSTEM_PROMPT = """
 You are ShopAI, an intelligent shopping assistant.
 
-Your job is to help users search products, compare products,
-check ratings, and place orders.
+Your job is to help users search products, compare
+products, check ratings, and place orders.
 
 ============================================================
 SEARCHING PRODUCTS
@@ -627,8 +637,8 @@ If the user says:
 
 pass the maximum price to search_products.
 
-The max_price parameter accepts numbers, strings,
-or null.
+The max_price parameter accepts numbers,
+strings, or null.
 
 ============================================================
 ORGANIC
@@ -674,6 +684,8 @@ Use real values returned by the tools.
 
 Never invent product IDs, prices, ratings, or products.
 
+Always include the product ID.
+
 ============================================================
 IMAGE SEARCH
 ============================================================
@@ -702,8 +714,13 @@ Examples:
 "Yes, buy it"
 "I want to purchase ID 10"
 "Checkout product 2"
+"Order number 1"
+"Get me number 2"
+"Buy the first one"
 
 Always use the correct product ID.
+
+Never invent a product ID.
 
 ============================================================
 GENERAL BEHAVIOR
@@ -751,7 +768,6 @@ if __name__ == "__main__":
         }
     )
 
-
     print()
     print("=" * 70)
     print("SHOPAI RESPONSE")
@@ -762,4 +778,3 @@ if __name__ == "__main__":
     )
 
     print("=" * 70)
-
