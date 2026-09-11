@@ -1,5 +1,6 @@
 import os
 import tempfile
+import json
 
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,8 +30,7 @@ app.add_middleware(
 
 def extract_response(result):
     """
-    Safely extract the last non-empty text response
-    from the LangChain agent messages.
+    Safely extract and format the agent response.
     """
 
     messages = result.get("messages", [])
@@ -41,21 +41,61 @@ def extract_response(result):
         if not content:
             continue
 
-        # Normal string response
+        # If content is a normal string
         if isinstance(content, str):
-            if content.strip():
-                return content.strip()
+            text = content.strip()
 
-        # Some LangChain/Groq responses can return content blocks
+            if not text:
+                continue
+
+            # Check whether the agent returned JSON
+            try:
+                data = json.loads(text)
+
+                if isinstance(data, list):
+                    lines = []
+
+                    for i, product in enumerate(data, start=1):
+                        name = product.get(
+                            "name",
+                            "Unknown product"
+                        )
+
+                        price = product.get(
+                            "price",
+                            "N/A"
+                        )
+
+                        organic = (
+                            "Organic"
+                            if product.get("is_organic")
+                            else "Non-organic"
+                        )
+
+                        lines.append(
+                            f"{i}. {name} — ${price} — {organic}"
+                        )
+
+                    if lines:
+                        return "\n".join(lines)
+
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+            return text
+
+        # If content is returned as blocks
         if isinstance(content, list):
             text_parts = []
 
             for block in content:
+
                 if isinstance(block, str):
                     text_parts.append(block)
 
                 elif isinstance(block, dict):
                     text = block.get("text")
+
                     if text:
                         text_parts.append(text)
 
