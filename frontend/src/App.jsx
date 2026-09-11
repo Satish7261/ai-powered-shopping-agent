@@ -32,6 +32,10 @@ import {
 } from "./services/api";
 
 
+// ============================================================
+// WELCOME MESSAGE
+// ============================================================
+
 const welcomeMessage = {
     role: "assistant",
 
@@ -46,11 +50,15 @@ const welcomeMessage = {
 };
 
 
+// ============================================================
+// APP
+// ============================================================
+
 function App() {
 
-    // -----------------------------
-    // State
-    // -----------------------------
+    // ========================================================
+    // STATE
+    // ========================================================
 
     const [
         messages,
@@ -59,20 +67,24 @@ function App() {
         welcomeMessage,
     ]);
 
+
     const [
         input,
         setInput,
     ] = useState("");
+
 
     const [
         loading,
         setLoading,
     ] = useState(false);
 
+
     const [
         connected,
         setConnected,
     ] = useState(false);
+
 
     const [
         showImageModal,
@@ -80,44 +92,46 @@ function App() {
     ] = useState(false);
 
 
-    // -----------------------------
-    // References
-    // -----------------------------
+    // ========================================================
+    // REFERENCES
+    // ========================================================
 
     const messagesEndRef =
         useRef(null);
+
 
     const inputRef =
         useRef(null);
 
 
-    // -----------------------------
-    // Check backend connection
-    // -----------------------------
+    // ========================================================
+    // BACKEND HEALTH CHECK
+    // ========================================================
 
     useEffect(() => {
 
-        const checkBackend = async () => {
+        const checkBackend =
+            async () => {
 
-            try {
+                try {
 
-                const data =
-                    await checkHealth();
+                    const data =
+                        await checkHealth();
 
-                setConnected(
-                    data?.status === "ok"
-                );
+                    setConnected(
+                        data?.status === "ok"
+                    );
 
-            } catch (error) {
+                } catch (error) {
 
-                console.error(
-                    "Health check failed:",
-                    error
-                );
+                    console.error(
+                        "Health check failed:",
+                        error
+                    );
 
-                setConnected(false);
-            }
-        };
+                    setConnected(false);
+                }
+            };
 
 
         // Check immediately
@@ -138,9 +152,9 @@ function App() {
     }, []);
 
 
-    // -----------------------------
-    // Scroll to latest message
-    // -----------------------------
+    // ========================================================
+    // SCROLL TO LATEST MESSAGE
+    // ========================================================
 
     useEffect(() => {
 
@@ -154,9 +168,9 @@ function App() {
     ]);
 
 
-    // -----------------------------
-    // Add message
-    // -----------------------------
+    // ========================================================
+    // ADD MESSAGE
+    // ========================================================
 
     const addMessage = (
         role,
@@ -180,9 +194,37 @@ function App() {
     };
 
 
-    // -----------------------------
-    // Send chat message
-    // -----------------------------
+    // ========================================================
+    // BUILD CHAT HISTORY
+    // ========================================================
+
+    const getConversationHistory = (
+        currentMessages
+    ) => {
+
+        return currentMessages
+            .filter(
+                (message) =>
+                    message.role === "user" ||
+                    message.role === "assistant"
+            )
+            .filter(
+                (message) =>
+                    message.content &&
+                    message.content.trim()
+            )
+            .map(
+                (message) => ({
+                    role: message.role,
+                    content: message.content,
+                })
+            );
+    };
+
+
+    // ========================================================
+    // SEND CHAT MESSAGE
+    // ========================================================
 
     const handleSend = async (
         customMessage = null
@@ -193,6 +235,7 @@ function App() {
         ).trim();
 
 
+        // Stop empty messages
         if (
             !message ||
             loading
@@ -202,26 +245,76 @@ function App() {
         }
 
 
-        // Clear input
+        // ----------------------------------------------------
+        // CREATE USER MESSAGE
+        // ----------------------------------------------------
+
+        const userMessage = {
+            role: "user",
+            content: message,
+        };
+
+
+        // ----------------------------------------------------
+        // CREATE HISTORY BEFORE STATE UPDATE
+        // ----------------------------------------------------
+        //
+        // This is important.
+        //
+        // React state updates are asynchronous, so we cannot
+        // depend on `messages` immediately after setMessages().
+        //
+        // Instead, create the complete history here.
+        // ----------------------------------------------------
+
+        const conversationHistory =
+            getConversationHistory(
+                messages
+            );
+
+
+        const updatedHistory = [
+            ...conversationHistory,
+            userMessage,
+        ];
+
+
+        // ----------------------------------------------------
+        // CLEAR INPUT
+        // ----------------------------------------------------
+
         setInput("");
 
 
-        // Show user message
-        addMessage(
-            "user",
-            message
+        // ----------------------------------------------------
+        // SHOW USER MESSAGE
+        // ----------------------------------------------------
+
+        setMessages(
+            (previous) => [
+                ...previous,
+                userMessage,
+            ]
         );
 
 
-        // Start loading
+        // ----------------------------------------------------
+        // START LOADING
+        // ----------------------------------------------------
+
         setLoading(true);
 
 
         try {
 
+            // ------------------------------------------------
+            // SEND MESSAGE + FULL HISTORY
+            // ------------------------------------------------
+
             const data =
                 await sendMessage(
-                    message
+                    message,
+                    updatedHistory
                 );
 
 
@@ -231,7 +324,10 @@ function App() {
             );
 
 
-            // Backend returned an error
+            // ------------------------------------------------
+            // BACKEND ERROR
+            // ------------------------------------------------
+
             if (
                 data?.success === false
             ) {
@@ -243,11 +339,44 @@ function App() {
             }
 
 
-            // Display AI response
-            addMessage(
-                "assistant",
-                data?.response ||
-                "I couldn't find a response."
+            // ------------------------------------------------
+            // GET RESPONSE
+            // ------------------------------------------------
+
+            const assistantResponse =
+                (
+                    data?.response ||
+                    ""
+                ).trim();
+
+
+            // ------------------------------------------------
+            // HANDLE EMPTY RESPONSE
+            // ------------------------------------------------
+
+            if (!assistantResponse) {
+
+                throw new Error(
+                    "The shopping assistant returned an empty response."
+                );
+            }
+
+
+            // ------------------------------------------------
+            // DISPLAY AI RESPONSE
+            // ------------------------------------------------
+
+            const assistantMessage = {
+                role: "assistant",
+                content: assistantResponse,
+            };
+
+
+            setMessages(
+                (previous) => [
+                    ...previous,
+                    assistantMessage,
+                ]
             );
 
 
@@ -263,22 +392,37 @@ function App() {
             );
 
 
-            // Show the actual error
-            addMessage(
-                "assistant",
-                `ShopAI error: ${
-                    error?.message ||
-                    "Something went wrong."
-                }`
+            // ------------------------------------------------
+            // SHOW ACTUAL ERROR
+            // ------------------------------------------------
+
+            const errorMessage = {
+                role: "assistant",
+
+                content:
+                    `ShopAI error: ${
+                        error?.message ||
+                        "Something went wrong."
+                    }`,
+            };
+
+
+            setMessages(
+                (previous) => [
+                    ...previous,
+                    errorMessage,
+                ]
             );
 
 
-            /*
-             * Do NOT mark the backend offline here.
-             *
-             * The backend can be online while
-             * the AI agent itself has an error.
-             */
+            // ------------------------------------------------
+            // IMPORTANT
+            // ------------------------------------------------
+            //
+            // A failed AI request does NOT automatically mean
+            // that FastAPI is offline.
+            // ------------------------------------------------
+
             setConnected(true);
 
         } finally {
@@ -291,14 +435,15 @@ function App() {
                 inputRef.current?.focus();
 
             }, 100);
+
         }
 
     };
 
 
-    // -----------------------------
-    // Image search
-    // -----------------------------
+    // ========================================================
+    // IMAGE SEARCH
+    // ========================================================
 
     const handleImageUpload =
         async (file) => {
@@ -312,22 +457,40 @@ function App() {
         }
 
 
-        // Close modal
+        // ----------------------------------------------------
+        // CLOSE MODAL
+        // ----------------------------------------------------
+
         setShowImageModal(false);
 
 
-        // Show upload message
-        addMessage(
-            "user",
-            "Searching for similar products...",
-            {
-                imageName:
-                    file.name,
-            }
+        // ----------------------------------------------------
+        // SHOW UPLOAD MESSAGE
+        // ----------------------------------------------------
+
+        const userImageMessage = {
+            role: "user",
+
+            content:
+                "Searching for similar products...",
+
+            imageName:
+                file.name,
+        };
+
+
+        setMessages(
+            (previous) => [
+                ...previous,
+                userImageMessage,
+            ]
         );
 
 
-        // Start loading
+        // ----------------------------------------------------
+        // START LOADING
+        // ----------------------------------------------------
+
         setLoading(true);
 
 
@@ -345,6 +508,10 @@ function App() {
             );
 
 
+            // ------------------------------------------------
+            // BACKEND ERROR
+            // ------------------------------------------------
+
             if (
                 data?.success === false
             ) {
@@ -356,11 +523,40 @@ function App() {
             }
 
 
-            // Display AI response
-            addMessage(
-                "assistant",
-                data?.response ||
-                "I couldn't identify a matching product."
+            // ------------------------------------------------
+            // GET RESPONSE
+            // ------------------------------------------------
+
+            const assistantResponse =
+                (
+                    data?.response ||
+                    ""
+                ).trim();
+
+
+            if (!assistantResponse) {
+
+                throw new Error(
+                    "The image search returned an empty response."
+                );
+            }
+
+
+            // ------------------------------------------------
+            // DISPLAY RESPONSE
+            // ------------------------------------------------
+
+            setMessages(
+                (previous) => [
+
+                    ...previous,
+
+                    {
+                        role: "assistant",
+                        content: assistantResponse,
+                    },
+
+                ]
             );
 
 
@@ -375,33 +571,40 @@ function App() {
             );
 
 
-            addMessage(
-                "assistant",
-                `Image search error: ${
-                    error?.message ||
-                    "Something went wrong."
-                }`
+            setMessages(
+                (previous) => [
+
+                    ...previous,
+
+                    {
+                        role: "assistant",
+
+                        content:
+                            `Image search error: ${
+                                error?.message ||
+                                "Something went wrong."
+                            }`,
+                    },
+
+                ]
             );
 
 
-            /*
-             * Keep the backend status as online.
-             * An image/agent failure does not mean
-             * that FastAPI is offline.
-             */
             setConnected(true);
+
 
         } finally {
 
             setLoading(false);
+
         }
 
     };
 
 
-    // -----------------------------
-    // New conversation
-    // -----------------------------
+    // ========================================================
+    // NEW CONVERSATION
+    // ========================================================
 
     const clearConversation =
         () => {
@@ -419,12 +622,18 @@ function App() {
 
         setInput("");
 
+        setTimeout(() => {
+
+            inputRef.current?.focus();
+
+        }, 100);
+
     };
 
 
-    // -----------------------------
-    // Keyboard handler
-    // -----------------------------
+    // ========================================================
+    // KEYBOARD HANDLER
+    // ========================================================
 
     const handleKeyDown =
         (event) => {
@@ -442,16 +651,18 @@ function App() {
     };
 
 
-    // -----------------------------
+    // ========================================================
     // UI
-    // -----------------------------
+    // ========================================================
 
     return (
 
         <div className="app-shell">
 
 
-            {/* Navbar */}
+            {/* =================================================
+                NAVBAR
+            ================================================= */}
 
             <Navbar
                 connected={
@@ -460,12 +671,16 @@ function App() {
             />
 
 
-            {/* Application body */}
+            {/* =================================================
+                APPLICATION BODY
+            ================================================= */}
 
             <div className="app-body">
 
 
-                {/* Sidebar */}
+                {/* =================================================
+                    SIDEBAR
+                ================================================= */}
 
                 <Sidebar
 
@@ -474,6 +689,7 @@ function App() {
                             true
                         )
                     }
+
 
                     onSuggestion={(
                         text
@@ -486,12 +702,16 @@ function App() {
                 />
 
 
-                {/* Chat */}
+                {/* =================================================
+                    CHAT PANEL
+                ================================================= */}
 
                 <main className="chat-panel">
 
 
-                    {/* Chat header */}
+                    {/* =================================================
+                        CHAT HEADER
+                    ================================================= */}
 
                     <div className="chat-header">
 
@@ -524,7 +744,9 @@ function App() {
                         </div>
 
 
-                        {/* New chat */}
+                        {/* =================================================
+                            NEW CHAT
+                        ================================================= */}
 
                         <button
 
@@ -551,7 +773,9 @@ function App() {
                     </div>
 
 
-                    {/* Messages */}
+                    {/* =================================================
+                        MESSAGES
+                    ================================================= */}
 
                     <section
                         className="messages-area"
@@ -581,7 +805,9 @@ function App() {
                             )}
 
 
-                            {/* Loading */}
+                            {/* =================================================
+                                TYPING INDICATOR
+                            ================================================= */}
 
                             {loading && (
 
@@ -601,7 +827,9 @@ function App() {
                     </section>
 
 
-                    {/* Message composer */}
+                    {/* =================================================
+                        MESSAGE COMPOSER
+                    ================================================= */}
 
                     <div className="composer-wrapper">
 
@@ -612,6 +840,7 @@ function App() {
                             <button
                                 className="composer-ai-icon"
                                 type="button"
+                                aria-label="AI assistant"
                             >
 
                                 <Sparkles
@@ -669,15 +898,19 @@ function App() {
 
                                 type="button"
 
+                                aria-label="Send message"
+
                             >
 
                                 <svg
+
                                     width="17"
                                     height="17"
                                     viewBox="0 0 24 24"
                                     fill="none"
                                     stroke="currentColor"
                                     strokeWidth="2"
+
                                 >
 
                                     <path
@@ -711,7 +944,9 @@ function App() {
             </div>
 
 
-            {/* Image upload modal */}
+            {/* =================================================
+                IMAGE UPLOAD MODAL
+            ================================================= */}
 
             {showImageModal && (
 
@@ -736,9 +971,7 @@ function App() {
             )}
 
         </div>
-
     );
-
 }
 
 
