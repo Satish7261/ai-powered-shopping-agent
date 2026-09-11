@@ -1,98 +1,137 @@
-# 🛒 AI Shopping Assistant
+# 🛍️ ShopAI — AI Shopping Assistant
 
-An AI-powered shopping assistant built with **LangChain**, **LangGraph**, **Groq**, **Streamlit**, and **SQLite**. It helps users search products, compare ratings, analyze product images, and place orders through a conversational interface.
+> An intelligent AI-powered shopping assistant that helps users discover,
+> compare, and evaluate products using natural language and product images.
 
-## 🚀 Live Demo
+ShopAI combines **Generative AI, Agentic AI, LangChain, FastAPI, React, and SQLite**
+to create a conversational shopping experience.
 
-🔗 https://ai-shopping-assistant-km26ywqxc4gpjdmtfniqns.streamlit.app/
-
-## ✨ Features
-
-- 🔍 Search products using natural language
-- ⭐ AI-powered product recommendations
-- 🖼️ Product image analysis
-- 💬 Customer review lookup
-- 🛍️ Place orders through chat
-- 💾 SQLite database integration
-- 🎨 Interactive Streamlit interface
-
-## 🛠️ Tech Stack
-
-- Python
-- LangChain
-- LangGraph
-- Groq
-- Streamlit
-- SQLite
-
-## 📂 Project Structure
-
-```text
-AI-Shopping-Assistant/
-│── app.py
-│── shopping_agent.py
-│── setup_db.py
-│── reviews_api.py
-│── requirements.txt
-│── README.md
-│── .env
-```
-
-## ⚙️ Installation
-
-```bash
-git clone https://github.com/Satish7261/AI-Shopping-Assistant.git
-cd AI-Shopping-Assistant
-
-python -m venv .venv
-```
-
-### Activate Virtual Environment
-
-**Windows**
-
-```bash
-.venv\Scripts\activate
-```
-
-**Linux/macOS**
-
-```bash
-source .venv/bin/activate
-```
-
-### Install Dependencies
-
-```bash
-pip install -r requirements.txt
-```
-
-### Create a `.env` file
-
-```env
-GROQ_API_KEY=your_groq_api_key
-```
-
-### Run the Application
-
-```bash
-streamlit run app.py
-```
-
-## 💡 Example Queries
-
-- I want to buy organic honey
-- Show me the highest-rated coffee
-- Recommend a product under $20
-- Describe this product image
-- Order product #2
-
-## 👨‍💻 Author
-
-**Satish**
-
-GitHub: https://github.com/Satish7261
+Users can describe what they are looking for in natural language, specify
+constraints such as price and organic preferences, compare product ratings,
+and search for similar products using an uploaded product image.
 
 ---
 
-⭐ If you found this project useful, consider giving it a star!
+## ✨ Features
+
+### 🤖 AI Shopping Agent
+
+Interact with ShopAI using natural language.
+
+Example:
+
+> "Find organic honey under $20 with a rating above 4.5."
+
+The AI understands the request and uses the available tools to search the
+product database and evaluate the results.
+
+### 🔎 Intelligent Product Search
+
+Search products using:
+
+- Product name
+- Category
+- Description
+- Maximum price
+- Organic / non-organic preference
+
+### ⭐ Product Rating Analysis
+
+ShopAI retrieves product ratings from the review database and uses them
+to help users compare products.
+
+### 🖼️ Image-Based Product Search
+
+Upload a product image and the AI:
+
+1. Analyzes the image using a vision-capable model
+2. Identifies the product and useful characteristics
+3. Generates search keywords
+4. Searches the store database
+5. Returns similar products
+
+### 🛒 Checkout
+
+The assistant can place an order after explicit user confirmation.
+
+### 💬 Conversational Interface
+
+A modern React-based interface provides:
+
+- AI chat
+- Product discovery
+- Image upload
+- Loading/typing indicators
+- Connection status
+- New chat functionality
+- Responsive dark UI
+
+---
+
+# 🏗️ Architecture
+
+```text
+                         ┌─────────────────────┐
+                         │      User           │
+                         │                     │
+                         │  Text / Product     │
+                         │       Image         │
+                         └──────────┬──────────┘
+                                    │
+                                    ▼
+                         ┌─────────────────────┐
+                         │   React Frontend    │
+                         │      + Vite         │
+                         └──────────┬──────────┘
+                                    │
+                             HTTP / REST API
+                                    │
+                                    ▼
+                         ┌─────────────────────┐
+                         │   FastAPI Backend   │
+                         │                     │
+                         │  /chat              │
+                         │  /image-search      │
+                         │  /health            │
+                         └──────────┬──────────┘
+                                    │
+                                    ▼
+                         ┌─────────────────────┐
+                         │   LangChain Agent   │
+                         │                     │
+                         │  Tool Selection     │
+                         │  Reasoning          │
+                         │  Task Execution     │
+                         └──────────┬──────────┘
+                                    │
+                 ┌──────────────────┼──────────────────┐
+                 │                  │                  │
+                 ▼                  ▼                  ▼
+        ┌────────────────┐ ┌────────────────┐ ┌────────────────┐
+        │ Search Product │ │ Get Rating     │ │ Checkout       │
+        │ Tool           │ │ Tool           │ │ Tool           │
+        └───────┬────────┘ └───────┬────────┘ └───────┬────────┘
+                │                  │                  │
+                └──────────────────┼──────────────────┘
+                                   ▼
+                         ┌─────────────────────┐
+                         │      SQLite         │
+                         │                     │
+                         │  Products           │
+                         │  Reviews            │
+                         │  Orders             │
+                         └─────────────────────┘
+
+                    Image Search Flow
+                           │
+                           ▼
+                  ┌──────────────────┐
+                  │ Vision-capable   │
+                  │ LLM              │
+                  └────────┬─────────┘
+                           │
+                           ▼
+                  Product Description
+                           │
+                           ▼
+                    Product Search
