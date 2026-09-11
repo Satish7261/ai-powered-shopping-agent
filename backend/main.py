@@ -17,15 +17,54 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "https://ai-powered-shopping-agent-frontend.onrender.com",
-],
- 
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+        "https://ai-powered-shopping-agent-frontend.onrender.com",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def extract_response(result):
+    """
+    Safely extract the last non-empty text response
+    from the LangChain agent messages.
+    """
+
+    messages = result.get("messages", [])
+
+    for message in reversed(messages):
+        content = getattr(message, "content", None)
+
+        if not content:
+            continue
+
+        # Normal string response
+        if isinstance(content, str):
+            if content.strip():
+                return content.strip()
+
+        # Some LangChain/Groq responses can return content blocks
+        if isinstance(content, list):
+            text_parts = []
+
+            for block in content:
+                if isinstance(block, str):
+                    text_parts.append(block)
+
+                elif isinstance(block, dict):
+                    text = block.get("text")
+                    if text:
+                        text_parts.append(text)
+
+            response = "".join(text_parts).strip()
+
+            if response:
+                return response
+
+    return "I couldn't generate a response. Please try again."
 
 
 @app.get("/")
@@ -62,9 +101,7 @@ def chat(
             }
         )
 
-        response = result[
-            "messages"
-        ][-1].content
+        response = extract_response(result)
 
         return {
             "success": True,
@@ -124,9 +161,7 @@ async def image_search(
             }
         )
 
-        response = result[
-            "messages"
-        ][-1].content
+        response = extract_response(result)
 
         return {
             "success": True,
