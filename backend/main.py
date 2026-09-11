@@ -1,6 +1,6 @@
+import json
 import os
 import tempfile
-import json
 
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,12 +8,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from shopping_agent import agent
 
 
+# ============================================================
+# FASTAPI APPLICATION
+# ============================================================
+
 app = FastAPI(
     title="ShopAI API",
     description="AI Shopping Assistant Backend",
-    version="1.0.0"
+    version="1.0.0",
 )
 
+
+# ============================================================
+# CORS
+# ============================================================
 
 app.add_middleware(
     CORSMiddleware,
@@ -28,84 +36,97 @@ app.add_middleware(
 )
 
 
+# ============================================================
+# EXTRACT FINAL AI RESPONSE
+# ============================================================
+
 def extract_response(result):
     """
-    Safely extract and format the agent response.
+    Extract only the final AI-generated text response.
+
+    Tool messages are intentionally ignored so internal tool
+    output such as search_products JSON is never displayed
+    directly to the user.
     """
 
     messages = result.get("messages", [])
 
+    # Search from the newest message to the oldest.
     for message in reversed(messages):
-        content = getattr(message, "content", None)
+
+        # LangChain AI messages normally have type == "ai".
+        message_type = getattr(
+            message,
+            "type",
+            "",
+        )
+
+        if message_type != "ai":
+            continue
+
+        content = getattr(
+            message,
+            "content",
+            None,
+        )
 
         if not content:
             continue
 
-        # If content is a normal string
+        # ----------------------------------------------------
+        # Normal string response
+        # ----------------------------------------------------
+
         if isinstance(content, str):
+
             text = content.strip()
 
-            if not text:
-                continue
+            if text:
+                return text
 
-            # Check whether the agent returned JSON
-            try:
-                data = json.loads(text)
 
-                if isinstance(data, list):
-                    lines = []
+        # ----------------------------------------------------
+        # Structured content blocks
+        # ----------------------------------------------------
 
-                    for i, product in enumerate(data, start=1):
-                        name = product.get(
-                            "name",
-                            "Unknown product"
-                        )
-
-                        price = product.get(
-                            "price",
-                            "N/A"
-                        )
-
-                        organic = (
-                            "Organic"
-                            if product.get("is_organic")
-                            else "Non-organic"
-                        )
-
-                        lines.append(
-                            f"{i}. {name} — ${price} — {organic}"
-                        )
-
-                    if lines:
-                        return "\n".join(lines)
-
-            except (json.JSONDecodeError, TypeError):
-                pass
-
-            return text
-
-        # If content is returned as blocks
         if isinstance(content, list):
+
             text_parts = []
 
             for block in content:
 
                 if isinstance(block, str):
+
                     text_parts.append(block)
 
                 elif isinstance(block, dict):
-                    text = block.get("text")
 
-                    if text:
-                        text_parts.append(text)
+                    block_text = block.get("text")
 
-            response = "".join(text_parts).strip()
+                    if block_text:
+                        text_parts.append(
+                            block_text
+                        )
+
+
+            response = "".join(
+                text_parts
+            ).strip()
+
 
             if response:
                 return response
 
-    return "I couldn't generate a response. Please try again."
 
+    return (
+        "I couldn't generate a response. "
+        "Please try again."
+    )
+
+
+# ============================================================
+# ROOT
+# ============================================================
 
 @app.get("/")
 def root():
@@ -115,6 +136,10 @@ def root():
     }
 
 
+# ============================================================
+# HEALTH CHECK
+# ============================================================
+
 @app.get("/health")
 def health():
 
@@ -123,65 +148,197 @@ def health():
     }
 
 
+# ============================================================
+# CHAT
+# ============================================================
+
 @app.post("/chat")
 def chat(
-    message: str = Form(...)
+    message: str = Form(...),
+    history: str = Form("[]"),
 ):
 
     try:
 
+        # ----------------------------------------------------
+        # LOAD HISTORY SENT BY FRONTEND
+        # ----------------------------------------------------
+
+        try:
+
+            conversation = json.loads(
+                history
+            )
+
+            if not isinstance(
+                conversation,
+                list,
+            ):
+                conversation = []
+
+        except (
+            json.JSONDecodeError,
+            TypeError,
+        ):
+
+            conversation = []
+
+
+        # ----------------------------------------------------
+        # BUILD CLEAN LANGCHAIN MESSAGE HISTORY
+        # ----------------------------------------------------
+
+        messages = []
+
+        for item in conversation:
+
+            if not isinstance(
+                item,
+                dict,
+            ):
+                continue
+
+
+            role = item.get(
+                "role"
+            )
+
+            content = item.get(
+                "content"
+            )
+
+
+            # Only allow actual conversation messages.
+            if role not in [
+                "user",
+                "assistant",
+            ]:
+                continue
+
+
+            if not content:
+                continue
+
+
+            content = str(
+                content
+            ).strip()
+
+
+            if not content:
+                continue
+
+
+            messages.append(
+                {
+                    "role": role,
+                    "content": content,
+                }
+            )
+
+
+        # ----------------------------------------------------
+        # MAKE SURE CURRENT MESSAGE EXISTS
+        # ----------------------------------------------------
+
+        if (
+            not messages
+            or messages[-1].get(
+                "content"
+            ) != message
+        ):
+
+            messages.append(
+                {
+                    "role": "user",
+                    "content": message,
+                }
+            )
+
+
+        # ----------------------------------------------------
+        # RUN AGENT WITH COMPLETE CONVERSATION
+        # ----------------------------------------------------
+
         result = agent.invoke(
             {
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": message
-                    }
-                ]
+                "messages": messages
             }
         )
 
-        response = extract_response(result)
+
+        # ----------------------------------------------------
+        # EXTRACT ONLY FINAL AI RESPONSE
+        # ----------------------------------------------------
+
+        response = extract_response(
+            result
+        )
+
+
+        # ----------------------------------------------------
+        # RETURN RESPONSE
+        # ----------------------------------------------------
 
         return {
             "success": True,
-            "response": response
+            "response": response,
         }
+
 
     except Exception as e:
 
         return {
             "success": False,
-            "response": f"Error: {str(e)}"
+            "response": (
+                f"Error: {str(e)}"
+            ),
         }
 
 
+# ============================================================
+# IMAGE SEARCH
+# ============================================================
+
 @app.post("/image-search")
 async def image_search(
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
 ):
 
     suffix = (
         os.path.splitext(
-            file.filename
+            file.filename or ""
         )[1]
         or ".jpg"
     )
 
+
     temp_path = None
+
 
     try:
 
+        # ----------------------------------------------------
+        # SAVE UPLOADED IMAGE TEMPORARILY
+        # ----------------------------------------------------
+
         with tempfile.NamedTemporaryFile(
             delete=False,
-            suffix=suffix
+            suffix=suffix,
         ) as tmp:
 
+            file_data = await file.read()
+
             tmp.write(
-                await file.read()
+                file_data
             )
 
             temp_path = tmp.name
+
+
+        # ----------------------------------------------------
+        # CREATE IMAGE SEARCH PROMPT
+        # ----------------------------------------------------
 
         prompt = (
             "I uploaded a product image. "
@@ -190,34 +347,68 @@ async def image_search(
             f"Image path: {temp_path}"
         )
 
+
+        # ----------------------------------------------------
+        # RUN AGENT
+        # ----------------------------------------------------
+
         result = agent.invoke(
             {
                 "messages": [
                     {
                         "role": "user",
-                        "content": prompt
+                        "content": prompt,
                     }
                 ]
             }
         )
 
-        response = extract_response(result)
+
+        # ----------------------------------------------------
+        # EXTRACT ONLY AI RESPONSE
+        # ----------------------------------------------------
+
+        response = extract_response(
+            result
+        )
+
 
         return {
             "success": True,
-            "response": response
+            "response": response,
         }
+
 
     except Exception as e:
 
         return {
             "success": False,
-            "response": f"Image analysis error: {str(e)}"
+            "response": (
+                "Image analysis error: "
+                f"{str(e)}"
+            ),
         }
+
 
     finally:
 
-        if temp_path and os.path.exists(
+        # ----------------------------------------------------
+        # DELETE TEMPORARY IMAGE
+        # ----------------------------------------------------
+
+        if (
             temp_path
+            and os.path.exists(
+                temp_path
+            )
         ):
-            os.remove(temp_path)
+
+            try:
+
+                os.remove(
+                    temp_path
+                )
+
+            except OSError:
+
+                pass
